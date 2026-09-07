@@ -1,1 +1,1 @@
-
+<resources><style name="Theme.MYRAA" parent="android:style/Theme.Material.NoActionBar"><item name="android:statusBarColor">#050913</item><item name="android:navigationBarColor">#050913</item><item name="android:windowLightStatusBar">false</item></style></resources>
