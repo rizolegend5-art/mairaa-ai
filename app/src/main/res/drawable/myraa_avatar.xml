@@ -1,0 +1,50 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- outer glow halo -->
+    <path
+        android:fillColor="#8B5CFF"
+        android:fillAlpha="0.18"
+        android:pathData="M100,4 m-96,0 a96,96 0 1,0 192,0 a96,96 0 1,0 -192,0" />
+
+    <!-- background disc -->
+    <path
+        android:fillColor="#0A1730"
+        android:pathData="M100,12 m-84,0 a84,84 0 1,0 168,0 a84,84 0 1,0 -168,0" />
+
+    <!-- hair silhouette -->
+    <path
+        android:fillColor="#8B5CFF"
+        android:pathData="M40,62 C40,20 160,20 160,62 C160,104 150,150 130,172 L118,140 C130,110 128,78 100,78 C72,78 70,110 82,140 L70,172 C50,150 40,104 40,62 Z" />
+
+    <!-- face -->
+    <path
+        android:fillColor="#0E1B36"
+        android:pathData="M100,70 C123,70 136,90 136,113 C136,143 118,163 100,163 C82,163 64,143 64,113 C64,90 77,70 100,70 Z" />
+
+    <!-- left eye glow -->
+    <path
+        android:fillColor="#37D8FF"
+        android:pathData="M85,113 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+
+    <!-- right eye glow -->
+    <path
+        android:fillColor="#37D8FF"
+        android:pathData="M115,113 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+
+    <!-- soft smile -->
+    <path
+        android:strokeColor="#37D8FF"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M88,136 Q100,144 112,136" />
+
+    <!-- hair highlight strand -->
+    <path
+        android:fillColor="#37D8FF"
+        android:fillAlpha="0.55"
+        android:pathData="M92,24 C86,40 86,56 94,68 C90,52 92,36 98,24 Z" />
+</vector>
