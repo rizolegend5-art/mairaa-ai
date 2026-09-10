@@ -1,4 +1,4 @@
-# MYRAA Ultimate — Background Voice Edition
+# MYRAA Ultimate BY  RIZO— Background Voice Edition
 
 Features: futuristic UI, voice input/replies, installed-app opening by name, battery status, wake-word activation ("Hey MYRAA"), voice-based SMS, WhatsApp message drafting, alarm/reminder setting, and a user-started visible foreground Voice Mode.
 
@@ -18,11 +18,28 @@ Android requires microphone permission and a visible foreground-service notifica
 
 MYRAA now addresses the user as "Captain" with a spaceship-AI personality throughout.
 
-## Notes / limitations
-- WhatsApp sending is intentionally manual-tap-to-send; there is no public Android API to auto-send on your behalf.
-- WiFi/Bluetooth cannot be silently toggled on Android 10+ for privacy/security reasons — MYRAA opens the control panel instead, one tap away.
-- Contact name matching is a simple substring match — exact contact names work best.
-- Alarm time parsing expects Hindi/Urdu-style phrasing with "baje" (e.g. "7 baje", "shaam 5:30 baje").
-- True OS-level control (root-style automation of any app, auto-clicking buttons in other apps) is intentionally not implemented — Android's security model does not allow third-party apps this level of access without root, and MYRAA does not attempt to bypass it.
+## AI Live Chat (Gemini)CAPTAIN now also supports a real, natural conversation mode powered by Google's Gemini Live API — instead of fixed phrases, you can talk to it like a person and it understands, replies with real generated speech, and still executes all the same device commands underneath via the `device_command` tool.
+
+**Setup required before this works:**
+1. Get a free Gemini API key from Google AI Studio (aistudio.google.com → "Create API key").
+2. In your GitHub repo: Settings → Secrets and variables → Actions → New repository secret → name it `GEMINI_API_KEY` → paste the key value. Never commit the key directly into any file.
+3. Rebuild via Actions — the key is injected at build time only, it never appears in source code or the repo history.
+
+**Notes / limitations:**
+- This mode uses your phone's mobile data/WiFi and consumes Gemini API quota (free tier has limits) — it is an on-demand "tap to start" conversation, not part of the always-on background wake-word listener, to avoid unexpected data/battery/quota usage.
+- Model and protocol details for the Gemini Live API can change on Google's side; if the AI Live Chat button gets stuck on "CONNECTING" or shows an ERROR, screenshot it and it can be adjusted.
+- The offline "Hey Captain" wake-word mode still works with zero API key needed, for all the same device commands.
+
+## YouTube Auto-Play (optional upgrade)
+By default, "video chalao" opens YouTube search results and you tap the top one. Add a free YouTube Data API v3 key to make CAPTAIN find and **auto-play the exact video directly**, no tap needed.
+
+**Setup:**
+1. Go to console.cloud.google.com → create/select a project → "APIs & Services" → "Library" → search "YouTube Data API v3" → Enable.
+2. "APIs & Services" → "Credentials" → "Create Credentials" → "API key". Copy it.
+3. In your GitHub repo: Settings → Secrets and variables → Actions → New repository secret → name it `YOUTUBE_API_KEY` → paste the key.
+4. Rebuild via Actions.
+
+Without this key, video commands still work fine via the search-results fallback — this is purely an optional upgrade.
+
 
 Build with Android Studio or a compatible cloud Android workspace.
