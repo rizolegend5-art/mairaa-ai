@@ -2,8 +2,13 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
     namespace = "com.myraa.ultimate"
     compileSdk = 35
-    defaultConfig { applicationId = "com.myraa.ultimate"; minSdk = 26; targetSdk = 35; versionCode = 2; versionName = "2.0.0" }
-    buildFeatures { compose = true }
+    defaultConfig {
+        applicationId = "com.myraa.ultimate"; minSdk = 26; targetSdk = 35; versionCode = 2; versionName = "2.0.0"
+        buildConfigField("String", "GEMINI_API_KEY", "\"AQ.Ab8RN6Js8LLHX2a3FssYLCp0IFoAqX0ujUlc4ta7BO3K8_HWSQ\"")
+        val youtubeKey = (project.findProperty("YOUTUBE_API_KEY") as String?) ?: System.getenv("YOUTUBE_API_KEY") ?: ""
+        buildConfigField("String", "YOUTUBE_API_KEY", "\"$youtubeKey\"")
+    }
+    buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -23,5 +28,6 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
