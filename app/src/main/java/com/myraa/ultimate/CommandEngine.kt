@@ -13,14 +13,20 @@ import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
 import android.provider.AlarmClock
+import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.Settings
 import android.telephony.SmsManager
 import android.view.KeyEvent
 import androidx.core.content.ContextCompat
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 import java.util.Locale
 
 class CommandEngine(private val context: Context) {
+
+    private val httpClient by lazy { OkHttpClient() }
 
     fun execute(raw: String): String {
         val t = raw.lowercase(Locale.getDefault())
@@ -53,16 +59,27 @@ class CommandEngine(private val context: Context) {
         smsCommand(raw, t)?.let { return it }
         videoCommand(raw, t)?.let { return it }
         noteCommand(raw, t)?.let { return it }
+        weatherCommand(t)?.let { return it }
+        currencyCommand(t)?.let { return it }
+        emailCommand(raw, t)?.let { return it }
+        calendarCommand(raw, t)?.let { return it }
+        calcCommand(t)?.let { return it }
 
         if (listOf("open", "kholo", "khol do", "khol", "chalao").any { t.contains(it) }) {
-            val name = raw.replace(Regex("(?i)myraa[, ]*"), "")
+            val name = raw.replace(Regex("(?i)captain[, ]*"), "")
                 .replace(Regex("(?i)open|kholo|khol do|khol|chalao"), "").trim()
             if (name.isBlank()) return "Boss, kaunsa module load karun?"
             val i = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
             val apps = context.packageManager.queryIntentActivities(i, 0)
                 .map { it.loadLabel(context.packageManager).toString() to it.activityInfo.packageName }
-            val match = apps.firstOrNull {
+            var match = apps.firstOrNull {
                 it.first.equals(name, true) || it.first.contains(name, true) || name.contains(it.first, true)
+            }
+            if (match == null) {
+                val bestDistance = apps.minOfOrNull { levenshtein(it.first.lowercase(), name.lowercase()) }
+                if (bestDistance != null && bestDistance <= maxOf(2, name.length / 3)) {
+                    match = apps.firstOrNull { levenshtein(it.first.lowercase(), name.lowercase()) == bestDistance }
+                }
             }
             if (match == null) return "Boss, $name naam ka module scan mein nahi mila."
             val launch = context.packageManager.getLaunchIntentForPackage(match.second)
@@ -72,7 +89,9 @@ class CommandEngine(private val context: Context) {
             return "Roger Boss, ${match.first} online kar rahi hoon."
         }
 
-        return "Boss, main flashlight, volume, brightness, screen timeout, music control, location, video search, note dictation, WiFi/Bluetooth, Do Not Disturb, call, SMS, WhatsApp, alarm aur app launch — sab control kar sakti hoon."
+        wikiCommand(raw, t)?.let { return it }
+
+        return "Boss, main flashlight, volume, brightness, screen timeout, music control, location, video search, note dictation, mausam, currency convert, Wikipedia info, email, calendar, calculator, WiFi/Bluetooth, Do Not Disturb, call, SMS, WhatsApp, alarm aur app launch — sab control kar sakti hoon."
     }
 
     // ---------- Flashlight ----------
@@ -274,12 +293,180 @@ class CommandEngine(private val context: Context) {
         }
     }
 
+    // ---------- Weather (Open-Meteo, free, no key) ----------
+    private fun weatherCommand(t: String): String? {
+        if (!(t.contains("mausam") || t.contains("weather") || t.contains("temperature"))) return null
+        val hasPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasPermission) return "Boss, mausam batane ke liye location permission chahiye."
+        return try {
+            val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+            var loc: android.location.Location? = null
+            for (p in lm.getProviders(true)) {
+                val l = lm.getLastKnownLocation(p) ?: continue
+                if (loc == null || l.accuracy < loc!!.accuracy) loc = l
+            }
+            if (loc == null) return "Boss, abhi GPS lock nahi mila, thodi der baad try karein."
+            val url = "https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m&timezone=auto"
+            val req = Request.Builder().url(url).build()
+            httpClient.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: return "Boss, mausam data nahi mila."
+                val temp = JSONObject(body).optJSONObject("current")?.optDouble("temperature_2m")
+                if (temp == null) "Boss, mausam data samajh nahi aaya." else "Boss, abhi temperature %.1f degree Celsius hai.".format(temp)
+            }
+        } catch (e: Exception) {
+            "Boss, mausam check nahi ho saka — internet connection dekh lijiye."
+        }
+    }
+
+    // ---------- Currency (open.er-api.com, free, no key) ----------
+    private fun currencyCommand(t: String): String? {
+        val m = Regex("([\\d.]+)\\s*(dollar|usd|rupee|pkr|inr|euro|eur|pound|gbp)").find(t) ?: return null
+        val amount = m.groupValues[1].toDoubleOrNull() ?: return null
+        val fromWord = m.groupValues[2]
+        val fromCode = when {
+            fromWord.contains("dollar") || fromWord == "usd" -> "USD"
+            fromWord.contains("euro") || fromWord == "eur" -> "EUR"
+            fromWord.contains("pound") || fromWord == "gbp" -> "GBP"
+            fromWord.contains("pkr") -> "PKR"
+            else -> "INR"
+        }
+        val toCode = if (fromCode != "PKR") "PKR" else "USD"
+        return try {
+            val url = "https://open.er-api.com/v6/latest/$fromCode"
+            val req = Request.Builder().url(url).build()
+            httpClient.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: return "Boss, currency data nahi mila."
+                val rate = JSONObject(body).optJSONObject("rates")?.optDouble(toCode)
+                if (rate == null || rate.isNaN()) "Boss, yeh currency abhi support nahi hoti."
+                else "Boss, $amount $fromCode ka matlab hai lagbhag %.2f $toCode.".format(amount * rate)
+            }
+        } catch (e: Exception) {
+            "Boss, currency convert nahi ho saka — internet check kar lijiye."
+        }
+    }
+
+    // ---------- Wikipedia quick facts (free, no key) ----------
+    private fun wikiCommand(raw: String, t: String): String? {
+        val triggers = listOf("kya hota hai", "kya hai", "ke bare mein batao", "batao kya hai")
+        if (!triggers.any { t.contains(it) }) return null
+        val topic = raw.replace(Regex("(?i)kya hota hai|kya hai|ke bare mein batao|batao kya hai"), "").trim()
+        if (topic.isBlank() || topic.length < 2) return null
+        return try {
+            val url = "https://en.wikipedia.org/api/rest_v1/page/summary/${Uri.encode(topic)}"
+            val req = Request.Builder().url(url).build()
+            httpClient.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return "Boss, '$topic' ke baare mein kuch nahi mila."
+                val body = resp.body?.string() ?: return "Boss, information nahi mil saki."
+                val extract = JSONObject(body).optString("extract")
+                if (extract.isBlank()) "Boss, '$topic' ke baare mein kuch nahi mila." else extract
+            }
+        } catch (e: Exception) {
+            "Boss, information fetch nahi ho saki — internet check kar lijiye."
+        }
+    }
+
+    // ---------- Email (Intent, manual send) ----------
+    private fun emailCommand(raw: String, t: String): String? {
+        if (!(t.contains("email bhejo") || t.contains("email likho"))) return null
+        val m = Regex("(?i)email (?:bhejo|likho)\\s+(\\S+@\\S+)\\s+ko\\s+(.+)").find(raw)
+            ?: return "Boss, bolein: 'email bhejo xyz@gmail.com ko message'."
+        val to = m.groupValues[1]
+        val message = m.groupValues[2]
+        return try {
+            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("mailto:$to")
+                putExtra(Intent.EXTRA_SUBJECT, "Captain se message")
+                putExtra(Intent.EXTRA_TEXT, message)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            "Boss, email app khol diya $to ke liye, message likha hua hai — Send aap khud dabaiye."
+        } catch (e: Exception) {
+            "Boss, email app open nahi ho saka."
+        }
+    }
+
+    // ---------- Calendar Event (Intent) ----------
+    private fun calendarCommand(raw: String, t: String): String? {
+        if (!(t.contains("calendar mein") || t.contains("event banao") || t.contains("meeting add karo"))) return null
+        val title = raw.replace(Regex("(?i)calendar mein|event banao|meeting add karo"), "").trim().ifBlank { "Naya Event" }
+        return try {
+            val intent = Intent(Intent.ACTION_INSERT).apply {
+                data = CalendarContract.Events.CONTENT_URI
+                putExtra(CalendarContract.Events.TITLE, title)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            "Boss, calendar khol diya '$title' event ke liye — date/time set karke save kar dijiye."
+        } catch (e: Exception) {
+            "Boss, calendar app open nahi ho saka."
+        }
+    }
+
+    // ---------- Calculator ----------
+    private fun calcCommand(t: String): String? {
+        val m = Regex("([\\d.]+)\\s*(plus|jama|add|minus|ghata|subtract|multiply|guna|times|divide|taqseem)\\s*([\\d.]+)").find(t) ?: return null
+        val a = m.groupValues[1].toDoubleOrNull() ?: return null
+        val op = m.groupValues[2]
+        val b = m.groupValues[3].toDoubleOrNull() ?: return null
+        val result = when (op) {
+            "plus", "jama", "add" -> a + b
+            "minus", "ghata", "subtract" -> a - b
+            "multiply", "guna", "times" -> a * b
+            "divide", "taqseem" -> if (b != 0.0) a / b else return "Boss, zero se divide nahi ho sakta."
+            else -> return null
+        }
+        val display = if (result == result.toLong().toDouble()) result.toLong().toString() else result.toString()
+        return "Boss, jawab hai $display."
+    }
+
+    private fun levenshtein(a: String, b: String): Int {
+        val dp = Array(a.length + 1) { IntArray(b.length + 1) }
+        for (i in 0..a.length) dp[i][0] = i
+        for (j in 0..b.length) dp[0][j] = j
+        for (i in 1..a.length) for (j in 1..b.length) {
+            val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+            dp[i][j] = minOf(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost)
+        }
+        return dp[a.length][b.length]
+    }
+
     // ---------- Video Search & Play ----------
     private fun videoCommand(raw: String, t: String): String? {
         val triggers = listOf("video chalao", "video play", "youtube par", "video dikhao", "gaana chalao youtube")
         if (!triggers.any { t.contains(it) }) return null
         val query = raw.replace(Regex("(?i)video chalao|video play karo|video play|youtube par chalao|youtube par|video dikhao|gaana chalao"), "").trim()
         if (query.isBlank()) return "Boss, kaunsa video chalaun?"
+
+        val apiKey = BuildConfig.YOUTUBE_API_KEY
+        if (apiKey.isNotBlank()) {
+            try {
+                val url = "https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&q=${Uri.encode(query)}&key=$apiKey"
+                val req = Request.Builder().url(url).build()
+                httpClient.newCall(req).execute().use { resp ->
+                    val body = resp.body?.string()
+                    if (resp.isSuccessful && body != null) {
+                        val items = JSONObject(body).optJSONArray("items")
+                        val item = if (items != null && items.length() > 0) items.getJSONObject(0) else null
+                        val videoId = item?.optJSONObject("id")?.optString("videoId")
+                        val title = item?.optJSONObject("snippet")?.optString("title") ?: query
+                        if (!videoId.isNullOrBlank()) {
+                            val playIntent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoId")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            try {
+                                context.startActivity(playIntent)
+                            } catch (e: Exception) {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://www.youtube.com/watch?v=$videoId")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }
+                            return "Roger Boss, '$title' chala rahi hoon."
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                // fall through to the search-results fallback below
+            }
+        }
+
         return try {
             val uri = Uri.parse("https://www.youtube.com/results?search_query=${Uri.encode(query)}")
             val intent = Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

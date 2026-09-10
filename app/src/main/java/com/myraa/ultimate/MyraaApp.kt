@@ -44,6 +44,7 @@ private val glassBorder = Color(0x33FFFFFF)
 fun MyraaApp(vm: MyraaViewModel, onRepeatClick: () -> Unit = {}) {
     val msgs by vm.messages.collectAsStateWithLifecycle()
     val status by vm.status.collectAsStateWithLifecycle()
+    val liveState by vm.liveState.collectAsStateWithLifecycle()
     var text by remember { mutableStateOf("") }
     var on by remember { mutableStateOf(false) }
 
@@ -71,6 +72,44 @@ fun MyraaApp(vm: MyraaViewModel, onRepeatClick: () -> Unit = {}) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GlassPill(if (on) "VOICE MODE: ON" else "VOICE MODE: OFF", if (on) cyan else Color(0xFF6B7A99))
                     GlassPill("say “Hey Captain”", violet)
+                }
+                Spacer(Modifier.height(10.dp))
+
+                val liveOn = liveState == "LISTENING" || liveState == "SPEAKING" || liveState == "CONNECTING"
+                Button(
+                    onClick = { if (liveOn) vm.stopLiveChat() else vm.startLiveChat() },
+                    modifier = Modifier.fillMaxWidth().height(52.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                    contentPadding = PaddingValues()
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    if (liveOn) listOf(Color(0xFFE64980), Color(0xFFB33FCE)) else listOf(Color(0xFF19B4D6), violet)
+                                ),
+                                RoundedCornerShape(16.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            when (liveState) {
+                                "CONNECTING" -> "CONNECTING..."
+                                "LISTENING" -> "🔴 AI LIVE CHAT • LISTENING"
+                                "SPEAKING" -> "🔴 AI LIVE CHAT • SPEAKING"
+                                else -> "🤖 START AI LIVE CHAT (Gemini)"
+                            },
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+                if (liveState.startsWith("ERROR")) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(liveState, color = Color(0xFFFF6B6B), style = MaterialTheme.typography.bodySmall)
                 }
                 Spacer(Modifier.height(12.dp))
 

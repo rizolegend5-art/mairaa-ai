@@ -20,7 +20,7 @@ class BackgroundVoiceService:Service(),TextToSpeech.OnInitListener{
    if(wakeIndex>=0){
     val command=words.drop(wakeIndex+1).joinToString(" ").trim()
     val toRun=if(command.isBlank())heard else command
-    tts.speak(engine.execute(toRun),TextToSpeech.QUEUE_FLUSH,null,"m")
+    Thread{val result=engine.execute(toRun);tts.speak(result,TextToSpeech.QUEUE_FLUSH,null,"m")}.start()
    }
   };restart()}
   override fun onPartialResults(p:Bundle?){};override fun onEvent(t:Int,p:Bundle?){}
